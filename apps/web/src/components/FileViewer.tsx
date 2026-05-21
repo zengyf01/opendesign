@@ -4291,9 +4291,11 @@ function HtmlViewer({
       return;
     }
     function onMessage(ev: MessageEvent) {
-      if (ev.source !== iframeRef.current?.contentWindow) return;
       const data = ev.data as ManualEditBridgeMessage | null;
       if (!data?.type) return;
+      // For od-edit-* messages from iframe (sandboxed), skip source check entirely
+      // since same-origin restriction makes ev.source comparison unreliable
+      if (!data.type.startsWith('od-edit-') && ev.source !== iframeRef.current?.contentWindow) return;
       if (data.type === 'od-edit-targets' && Array.isArray(data.targets)) {
         setManualEditTargets(data.targets);
         // Target broadcasts can be briefly empty while the iframe/save path is
@@ -4457,11 +4459,14 @@ function HtmlViewer({
     setManualEditError(null);
     try {
       const baseSource = sourceRef.current;
+      console.error('[FileViewer] applyManualEdit baseSource length:', baseSource.length);
       const result = applyManualEditPatch(baseSource, patch);
+      console.error('[FileViewer] applyManualEdit patch result ok:', result.ok, 'error:', result.error);
       if (!result.ok) {
         setManualEditError(result.error ?? 'Could not apply edit.');
         return false;
       }
+      console.error('[FileViewer] applyManualEdit before confirmManualEditHistorySource');
       if (!(await confirmManualEditHistorySource(
         baseSource,
         'The file changed outside manual edit mode. Refreshing before applying manual edits.',
@@ -4469,6 +4474,7 @@ function HtmlViewer({
       const saved = await writeProjectTextFile(projectId, file.name, result.source, {
         artifactManifest: file.artifactManifest,
       });
+      console.error('[FileViewer] applyManualEdit writeProjectTextFile result:', saved);
       if (!saved) {
         setManualEditError('Could not save the edited file.');
         return false;

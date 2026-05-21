@@ -23,8 +23,9 @@ export function applyManualEditPatch(source: string, patch: ManualEditPatch): Ma
   if (!el) return { ok: false, source, error: `Target not found: ${patch.id}` };
 
   if (patch.kind === 'set-text') {
-    if (hasElementChildren(el)) {
-      return { ok: false, source, error: 'This element contains nested markup. Use the HTML tab instead.' };
+    // Clear all child nodes first (including nested markup)
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
     }
     el.textContent = patch.value;
   } else if (patch.kind === 'set-link') {

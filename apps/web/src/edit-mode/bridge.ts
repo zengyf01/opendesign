@@ -322,18 +322,6 @@ export function buildManualEditBridge(enabled: boolean): string {
       el.setAttribute('contenteditable', 'true');
       el.setAttribute('data-od-editing-text', 'true');
       el.focus();
-      var range = document.createRange();
-      range.selectNodeContents(el);
-      var sel = window.getSelection();
-      if (sel) {
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    });
-    el.addEventListener('mousedown', function(e){
-      if (!el.hasAttribute('data-od-editing-text')) return;
-      e.preventDefault();
-      e.stopPropagation();
     });
     el.addEventListener('blur', function(e){
       if (!el.hasAttribute('data-od-editing-text')) return;
@@ -341,6 +329,7 @@ export function buildManualEditBridge(enabled: boolean): string {
       var newText = (el.textContent || '').trim();
       el.removeAttribute('contenteditable');
       el.removeAttribute('data-od-editing-text');
+      console.log('[edit-bridge] blur, sending text-change:', id, newText);
       window.parent.postMessage({ type: 'od-edit-text-change', id: id, text: newText }, '*');
     });
     el.addEventListener('keydown', function(e){
