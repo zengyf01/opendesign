@@ -74,7 +74,8 @@ export type ManualEditPatch =
   | { id: string; kind: 'set-style'; styles: Partial<ManualEditStyles> }
   | { id: string; kind: 'set-attributes'; attributes: Record<string, string> }
   | { id: string; kind: 'set-outer-html'; html: string }
-  | { kind: 'set-full-source'; source: string };
+  | { kind: 'set-full-source'; source: string }
+  | { id: string; kind: 'move-element'; afterId: string | null; beforeId: string | null };
 
 export interface ManualEditHistoryEntry {
   id: string;
@@ -106,7 +107,22 @@ export interface ManualEditPreviewAppliedMessage {
 export type ManualEditBridgeMessage =
   | ManualEditTargetMessage
   | ManualEditSelectMessage
-  | ManualEditPreviewAppliedMessage;
+  | ManualEditPreviewAppliedMessage
+  | ManualEditReorderMessage
+  | ManualEditTextChangeMessage;
+
+export interface ManualEditReorderMessage {
+  type: 'od-edit-reorder';
+  id: string;
+  afterId: string | null;
+  beforeId: string | null;
+}
+
+export interface ManualEditTextChangeMessage {
+  type: 'od-edit-text-change';
+  id: string;
+  text: string;
+}
 
 export const MANUAL_EDIT_STYLE_PROPS: readonly (keyof ManualEditStyles)[] = [
   'fontFamily', 'fontSize', 'fontWeight', 'color', 'textAlign', 'lineHeight', 'letterSpacing',

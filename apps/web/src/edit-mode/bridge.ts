@@ -230,6 +230,136 @@ export function buildManualEditBridge(enabled: boolean): string {
       window.parent.postMessage({ type: 'od-edit-preview-style-applied', id: id, version: Number(version) || 0, ok: false, error: e && e.message ? String(e.message) : 'Could not apply preview styles' }, '*');
     }
   }
+  var draggedId = null;
+  var dropIndicator = null;
+  function createDropIndicator(){
+    if (dropIndicator) return dropIndicator;
+    var indicator = document.createElement('div');
+    indicator.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;height:2px;background:#2563eb;opacity:0.8;display:none;';
+    document.body.appendChild(indicator);
+    dropIndicator = indicator;
+    return indicator;
+  }
+  function showDropIndicator(targetEl){
+    var indicator = createDropIndicator();
+    var rect = targetEl.getBoundingClientRect();
+    indicator.style.top = (rect.top - 1) + 'px';
+    indicator.style.left = rect.left + 'px';
+    indicator.style.width = rect.width + 'px';
+    indicator.style.display = 'block';
+  }
+  function hideDropIndicator(){
+    if (dropIndicator) dropIndicator.style.display = 'none';
+  }
+  function clearDragSource(){
+    var prev = document.querySelectorAll('[data-od-drag-source]');
+    for (var i = 0; i < prev.length; i++) prev[i].removeAttribute('data-od-drag-source');
+  }
+  function startDrag(el){
+    draggedId = stableId(el);
+    el.setAttribute('data-od-drag-source', 'true');
+  }
+  function endDrag(){
+    clearDragSource();
+    draggedId = null;
+    hideDropIndicator();
+  }
+  function attachDragHandlers(el){
+    el.setAttribute('draggable', 'true');
+    el.addEventListener('dragstart', function(e){
+      if (!enabled) return;
+      startDrag(el);
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', stableId(el));
+      }
+      e.stopPropagation();
+    });
+    el.addEventListener('dragend', function(e){
+      endDrag();
+      e.stopPropagation();
+    });
+    el.addEventListener('dragover', function(e){
+      if (!enabled || !draggedId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var srcEl = findById(draggedId);
+      if (srcEl && srcEl.contains(el)) return;
+      showDropIndicator(el);
+    });
+    el.addEventListener('dragleave', function(e){
+      if (!enabled) return;
+      if (!el.contains(e.relatedTarget)) hideDropIndicator();
+    });
+    el.addEventListener('drop', function(e){
+      if (!enabled || !draggedId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var srcEl = findById(draggedId);
+      if (srcEl && srcEl.contains(el)) {
+        endDrag();
+        return;
+      }
+      var dropId = stableId(el);
+      var afterId = null;
+      var beforeId = null;
+      var rect = el.getBoundingClientRect();
+      var midX = rect.left + rect.width / 2;
+      if (e.clientX > midX) {
+        afterId = dropId;
+      } else {
+        beforeId = dropId;
+      }
+      window.parent.postMessage({ type: 'od-edit-reorder', id: draggedId, afterId: afterId, beforeId: beforeId }, '*');
+      endDrag();
+    });
+  }
+  function attachTextEditHandlers(el){
+    el.addEventListener('dblclick', function(e){
+      if (!enabled) return;
+      e.stopPropagation();
+      var id = stableId(el);
+      el.setAttribute('contenteditable', 'true');
+      el.setAttribute('data-od-editing-text', 'true');
+      el.focus();
+      var range = document.createRange();
+      range.selectNodeContents(el);
+      var sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    });
+    el.addEventListener('mousedown', function(e){
+      if (!el.hasAttribute('data-od-editing-text')) return;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    el.addEventListener('blur', function(e){
+      if (!el.hasAttribute('data-od-editing-text')) return;
+      var id = stableId(el);
+      var newText = (el.textContent || '').trim();
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('data-od-editing-text');
+      window.parent.postMessage({ type: 'od-edit-text-change', id: id, text: newText }, '*');
+    });
+    el.addEventListener('keydown', function(e){
+      if (!el.hasAttribute('data-od-editing-text')) return;
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        el.blur();
+      }
+    });
+  }
+  function setupDragAndDrop(){
+    var nodes = document.body ? document.body.querySelectorAll(discoverySelector) : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (isSourceMappable(nodes[i])) {
+        attachDragHandlers(nodes[i]);
+        attachTextEditHandlers(nodes[i]);
+      }
+    }
+  }
   window.addEventListener('message', function(ev){
     if (!ev.data) return;
     if (ev.data.type === 'od-edit-mode') {
@@ -257,8 +387,8 @@ export function buildManualEditBridge(enabled: boolean): string {
     window.parent.postMessage({ type: 'od-edit-select', target: targetFrom(el, true) }, '*');
   }, true);
   window.addEventListener('resize', postTargets);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', postTargets);
-  else setTimeout(postTargets, 0);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ postTargets(); setupDragAndDrop(); });
+  else setTimeout(function(){ postTargets(); setupDragAndDrop(); }, 0);
   document.documentElement.toggleAttribute('data-od-edit-mode', enabled);
 })();</script>`;
 }
@@ -274,6 +404,13 @@ html[data-od-edit-mode] [data-od-edit-selected] {
   outline: 2px solid #2563eb !important;
   outline-offset: 4px;
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
+}
+html[data-od-edit-mode] [data-od-drag-source] {
+  opacity: 0.5;
+}
+html[data-od-edit-mode] [data-od-editing-text] {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 </style>`;
 }

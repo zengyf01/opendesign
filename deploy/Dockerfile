@@ -30,12 +30,26 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY e2e/package.json ./e2e/package.json
 RUN corepack enable && \
     corepack prepare pnpm@10.33.2 --activate && \
-    pnpm install --frozen-lockfile
+    echo "shamefully-hoist=true" > .npmrc && \
+    pnpm install --ignore-scripts
 
 COPY apps ./apps
-RUN pnpm --filter @open-design/daemon build && \
-    pnpm --filter @open-design/web build && \
+RUN echo "shamefully-hoist=true" > .npmrc && \
+    pnpm install --ignore-scripts && \
+    pnpm exec esbuild packages/contracts/esbuild.config.mjs && \
+    pnpm exec tsc -p packages/contracts/tsconfig.json --emitDeclarationOnly && \
+    pnpm exec tsc -p packages/sidecar-proto/tsconfig.json --emitDeclarationOnly && \
+    pnpm exec tsc -p packages/sidecar/tsconfig.json --emitDeclarationOnly && \
+    pnpm exec tsc -p packages/platform/tsconfig.json --emitDeclarationOnly && \
+    pnpm exec esbuild tools/dev/esbuild.config.mjs && \
+    pnpm exec tsc -p tools/dev/tsconfig.json && \
+    pnpm exec esbuild tools/pack/esbuild.config.mjs && \
+    pnpm exec tsc -p tools/pack/tsconfig.json && \
+    pnpm exec esbuild tools/pr/esbuild.config.mjs && \
+    pnpm exec tsc -p tools/pr/tsconfig.json && \
+    pnpm exec tsc -p apps/daemon/tsconfig.json && \
     pnpm --filter @open-design/daemon deploy --legacy --prod /app/deploy/daemon && \
+    cd apps/web && pnpm exec next build && \
     pnpm store prune && \
     rm -rf \
       /root/.cache \
@@ -75,6 +89,10 @@ RUN apk add --no-cache tini && \
 WORKDIR /app
 COPY --from=build --chown=open-design:open-design /app/deploy/daemon ./apps/daemon
 COPY --from=build --chown=open-design:open-design /app/apps/web/out ./apps/web/out
+COPY --from=build --chown=open-design:open-design /app/packages/contracts/dist ./apps/daemon/node_modules/@open-design/contracts/dist
+COPY --from=build --chown=open-design:open-design /app/packages/platform/dist ./apps/daemon/node_modules/@open-design/platform/dist
+COPY --from=build --chown=open-design:open-design /app/packages/sidecar-proto/dist ./apps/daemon/node_modules/@open-design/sidecar-proto/dist
+COPY --from=build --chown=open-design:open-design /app/packages/sidecar/dist ./apps/daemon/node_modules/@open-design/sidecar/dist
 COPY --chown=open-design:open-design skills ./skills
 COPY --chown=open-design:open-design design-systems ./design-systems
 COPY --chown=open-design:open-design craft ./craft

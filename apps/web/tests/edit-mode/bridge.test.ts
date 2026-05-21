@@ -143,4 +143,47 @@ describe('manual edit bridge target normalization', () => {
     expect(bridge).toContain('isLayoutContainer: isLayoutContainer(el)');
     expect(bridge).toContain("display.indexOf('flex') >= 0 || display.indexOf('grid') >= 0");
   });
+
+  it('includes text editing handlers in the bridge', () => {
+    const bridge = buildManualEditBridge(true);
+
+    expect(bridge).toContain('dblclick');
+    expect(bridge).toContain('od-edit-text-change');
+    expect(bridge).toContain('contenteditable');
+    expect(bridge).toContain('data-od-editing-text');
+  });
+
+  it('sends text change message on blur during text editing', () => {
+    const dom = new JSDOM(
+      `<main>
+        <h1 data-od-id="title">Title</h1>
+      </main>${buildManualEditBridge(true)}`,
+      { runScripts: 'dangerously', url: 'http://localhost' },
+    );
+    const h1 = dom.window.document.querySelector('[data-od-id="title"]')!;
+    let receivedMessage: unknown = null;
+    dom.window.parent.postMessage = function(msg: unknown) {
+      receivedMessage = msg;
+    };
+
+    // Simulate double-click to enter editing mode
+    dom.window.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    expect(h1.getAttribute('contenteditable')).toBe('true');
+    expect(h1.getAttribute('data-od-editing-text')).toBe('true');
+
+    // Change text content
+    h1.textContent = 'Edited Title';
+
+    // Simulate blur to exit editing mode and send message
+    dom.window.dispatchEvent(new dom.window.Event('blur', { bubbles: true }));
+    expect(h1.hasAttribute('contenteditable')).toBe(false);
+    expect(h1.hasAttribute('data-od-editing-text')).toBe(false);
+    expect(receivedMessage).toEqual({
+      type: 'od-edit-text-change',
+      id: 'title',
+      text: 'Edited Title',
+    });
+
+    dom.window.close();
+  });
 });

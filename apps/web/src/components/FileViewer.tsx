@@ -4310,6 +4310,17 @@ function HtmlViewer({
         void selectManualEditTarget(data.target);
         return;
       }
+      if (data.type === 'od-edit-reorder') {
+        void applyManualEdit(
+          { id: data.id, kind: 'move-element', afterId: data.afterId, beforeId: data.beforeId },
+          'Move element',
+        );
+        return;
+      }
+      if (data.type === 'od-edit-text-change') {
+        void applyManualEdit({ id: data.id, kind: 'set-text', value: data.text }, 'Edit text');
+        return;
+      }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);

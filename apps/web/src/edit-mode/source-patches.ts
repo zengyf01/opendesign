@@ -47,6 +47,9 @@ export function applyManualEditPatch(source: string, patch: ManualEditPatch): Ma
   } else if (patch.kind === 'set-outer-html') {
     const replaced = replaceOuterHtml(doc, el, patch.html);
     if (!replaced.ok) return { ok: false, source, error: replaced.error };
+  } else if (patch.kind === 'move-element') {
+    const moved = moveElement(doc, patch.id, patch.afterId, patch.beforeId);
+    if (!moved.ok) return { ok: false, source, error: moved.error };
   }
 
   return { ok: true, source: serializeSource(doc, source) };
@@ -187,6 +190,44 @@ function setAttributes(el: Element, attributes: Record<string, string>): void {
     if (value.trim() === '') el.removeAttribute(name);
     else el.setAttribute(name, value);
   }
+}
+
+function moveElement(doc: Document, id: string, afterId: string | null, beforeId: string | null): { ok: true } | { ok: false; error: string } {
+  const el = findEditableElement(doc, id);
+  if (!el) return { ok: false, error: `Element not found: ${id}` };
+  const parent = el.parentElement;
+  if (!parent) return { ok: false, error: 'Element has no parent' };
+
+  // Find anchor element (insert reference point)
+  let anchor: Element | null = null;
+  if (afterId !== null) {
+    anchor = findEditableElement(doc, afterId);
+  } else if (beforeId !== null) {
+    anchor = findEditableElement(doc, beforeId);
+  }
+
+  // Remove element from current position
+  el.remove();
+
+  if (anchor) {
+    if (afterId !== null) {
+      // Insert after anchor
+      const nextSibling = anchor.nextElementSibling;
+      if (nextSibling) {
+        parent.insertBefore(el, nextSibling);
+      } else {
+        parent.appendChild(el);
+      }
+    } else {
+      // Insert before anchor
+      parent.insertBefore(el, anchor);
+    }
+  } else {
+    // No anchor, append to parent
+    parent.appendChild(el);
+  }
+
+  return { ok: true };
 }
 
 function replaceOuterHtml(doc: Document, el: Element, html: string): { ok: true } | { ok: false; error: string } {

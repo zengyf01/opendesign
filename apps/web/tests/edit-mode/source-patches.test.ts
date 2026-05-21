@@ -210,4 +210,58 @@ describe('manual edit source patches', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain('nested markup');
   });
+
+  it('moves an element to the end of another container', () => {
+    const result = applyManualEditPatch(baseSource, {
+      kind: 'move-element',
+      id: 'hero-title',
+      afterId: 'card',
+      beforeId: null,
+    });
+
+    expect(result.ok).toBe(true);
+    const cardIdx = result.source.indexOf('<section data-od-id="card"');
+    const heroIdx = result.source.indexOf('<h1 data-od-id="hero-title"');
+    expect(heroIdx).toBeGreaterThan(cardIdx);
+  });
+
+  it('moves an element before another element', () => {
+    const result = applyManualEditPatch(baseSource, {
+      kind: 'move-element',
+      id: 'card',
+      afterId: null,
+      beforeId: 'hero-title',
+    });
+
+    expect(result.ok).toBe(true);
+    const cardIdx = result.source.indexOf('<section data-od-id="card"');
+    const heroIdx = result.source.indexOf('<h1 data-od-id="hero-title"');
+    expect(cardIdx).toBeLessThan(heroIdx);
+  });
+
+  it('moves an element after another element', () => {
+    const result = applyManualEditPatch(baseSource, {
+      kind: 'move-element',
+      id: 'hero-title',
+      afterId: 'cta',
+      beforeId: null,
+    });
+
+    expect(result.ok).toBe(true);
+    const ctaIdx = result.source.indexOf('<a data-od-id="cta"');
+    const heroIdx = result.source.indexOf('<h1 data-od-id="hero-title"');
+    expect(heroIdx).toBeGreaterThan(ctaIdx);
+  });
+
+  it('fails when element not found', () => {
+    const result = applyManualEditPatch(baseSource, {
+      kind: 'move-element',
+      id: 'nonexistent',
+      afterId: 'hero-title',
+      beforeId: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('not found');
+  });
 });
