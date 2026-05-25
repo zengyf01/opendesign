@@ -95,4 +95,8 @@ Daemon writes everything under `.od/` (gitignored, auto-created):
 - All local lifecycle must use `pnpm tools-dev`; do not add root `pnpm dev`/`pnpm start` aliases.
 
 ## 优化增强
-- 所有优化、增强都需要维护到doc目录下的优化增强清单.md
+- 所有优化、增强、问题都需要维护到doc目录下的优化增强清单.md
+
+## 提问
+- 源文件生成好后，要提醒完成
+- 

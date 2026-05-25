@@ -264,4 +264,60 @@ describe('manual edit source patches', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain('not found');
   });
+
+  it('moves an element from outside a container to inside it (cross-parent)', () => {
+    // Structure: body > (nav + main)
+    // Move nav into main - this is a cross-parent move
+    const source = `<!doctype html>
+<html>
+  <head><style></style></head>
+  <body>
+    <nav data-od-id="nav-el"><a data-od-id="nav-link">Nav</a></nav>
+    <main data-od-id="main-el"><h1 data-od-id="main-title">Main</h1></main>
+  </body>
+</html>`;
+    // Move nav after main-title (so nav becomes last child of main)
+    const result = applyManualEditPatch(source, {
+      kind: 'move-element',
+      id: 'nav-el',
+      afterId: 'main-title',
+      beforeId: null,
+    });
+
+    expect(result.ok).toBe(true);
+    // nav should now be inside main, after main-title
+    const mainStart = result.source.indexOf('<main');
+    const navStart = result.source.indexOf('<nav');
+    const mainTitleStart = result.source.indexOf('<h1 data-od-id="main-title"');
+    expect(navStart).toBeGreaterThan(mainStart);
+    expect(navStart).toBeGreaterThan(mainTitleStart);
+    // nav should not be a direct child of body anymore
+    expect(result.source.indexOf('</nav>')).toBeLessThan(result.source.indexOf('</body>'));
+  });
+
+  it('moves an element from inside a container to outside (cross-parent)', () => {
+    // Structure: body > (main > h1 + nav)
+    // Move nav (child of main) to be after main (sibling of main)
+    const source = `<!doctype html>
+<html>
+  <head><style></style></head>
+  <body>
+    <main data-od-id="main-el"><h1 data-od-id="main-title">Main</h1><nav data-od-id="nav-el"><a data-od-id="nav-link">Nav</a></nav></main>
+  </body>
+</html>`;
+    // Move nav after main (nav becomes a sibling of main, not a child)
+    const result = applyManualEditPatch(source, {
+      kind: 'move-element',
+      id: 'nav-el',
+      afterId: 'main-el',
+      beforeId: null,
+    });
+
+    expect(result.ok).toBe(true);
+    // nav should be after main, both as direct children of body
+    const mainStart = result.source.indexOf('<main');
+    const navStart = result.source.indexOf('<nav');
+    expect(navStart).toBeGreaterThan(mainStart);
+    expect(navStart).toBeLessThan(result.source.indexOf('</body>'));
+  });
 });

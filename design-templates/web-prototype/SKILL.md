@@ -84,6 +84,7 @@ Wrap `index.html` in `<artifact>` tags. One sentence before describing what's th
 - **Image placeholders, not external URLs.** Use the `.ph-img` class — never link to a stock photo CDN.
 - **Mobile reflow already works** via the seed's media query at 920px. Don't break it by adding fixed widths.
 - **`data-od-id` on every `<section>`** so comment mode can target it.
+- **`data-od-source-path` on every editable element** — not just sections. Every `<p>`, `<h1–h3>`, `<a>`, `<button>`, `<img>`, `<span>`, `<strong>`, and every container `<div>` that a user might want to drag or edit must carry `data-od-source-path`. Omitting the attribute breaks edit mode; never leave it out.
 
 ## Output contract
 

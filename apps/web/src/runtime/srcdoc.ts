@@ -324,7 +324,11 @@ function sourcePathForElement(el: Element): string {
   while (node && node !== node.ownerDocument.body) {
     const parent: Element | null = node.parentElement;
     if (!parent) break;
-    parts.unshift(Array.prototype.indexOf.call(parent.children, node));
+    // Filter out injected bridge/shim nodes to match bridge.ts domPath behavior
+    const siblings = Array.from(parent.children).filter((child) =>
+      !child.matches('[data-od-sandbox-shim], [data-od-deck-bridge], [data-od-comment-bridge], [data-od-edit-bridge], [data-od-comment-bridge-style], [data-od-edit-bridge-style], [data-od-deck-fix]')
+    );
+    parts.unshift(siblings.indexOf(node));
     node = parent;
   }
   return parts.length ? `path-${parts.join('-')}` : '';

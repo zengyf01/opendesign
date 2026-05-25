@@ -3910,7 +3910,9 @@ function HtmlViewer({
   // invisible to the iframe — live updates flow through od-edit-preview-style
   // postMessage instead, so the canvas never has to reload.
   useEffect(() => {
+    console.error('[FileViewer] freeze effect running:', { manualEditMode, manualEditFrozenSourceLen: manualEditFrozenSource?.length, livePreviewSourceLen: livePreviewSource?.length });
     if (manualEditMode && manualEditFrozenSource === null && livePreviewSource != null) {
+      console.error('[FileViewer] freeze effect setting frozenSource to livePreviewSource');
       setManualEditFrozenSource(livePreviewSource);
     }
   }, [manualEditMode, manualEditFrozenSource, livePreviewSource]);
@@ -4461,7 +4463,7 @@ function HtmlViewer({
       const baseSource = sourceRef.current;
       console.error('[FileViewer] applyManualEdit baseSource length:', baseSource.length);
       const result = applyManualEditPatch(baseSource, patch);
-      console.error('[FileViewer] applyManualEdit patch result ok:', result.ok, 'error:', result.error);
+      console.error('[FileViewer] applyManualEdit patch result ok:', result.ok, 'error:', result.error, 'result.source length:', result.source.length, 'baseSource === sourceRef.current:', baseSource === sourceRef.current);
       if (!result.ok) {
         setManualEditError(result.error ?? 'Could not apply edit.');
         return false;
@@ -4490,6 +4492,13 @@ function HtmlViewer({
       setSource(result.source);
       sourceRef.current = result.source;
       setInlinedSource(null);
+      // Clear frozen source to force srcdoc rebuild after structural edits
+      // so iframe picks up the new element positions
+      if (patch.kind === 'move-element' || patch.kind === 'set-text' || patch.kind === 'set-outer-html') {
+        console.error('[FileViewer] applyManualEdit setting manualEditFrozenSource to null for patch kind:', patch.kind, 'current manualEditFrozenSource:', manualEditFrozenSource?.slice(0, 100));
+        setManualEditFrozenSource(null);
+        console.error('[FileViewer] after setManualEditFrozenSource(null), pending state: will reset iframe srcDoc');
+      }
       setManualEditHistory((current) => [entry, ...current]);
       setManualEditUndone([]);
       setManualEditDraft((current) => ({ ...current, fullSource: result.source }));

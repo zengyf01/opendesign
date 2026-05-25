@@ -2350,6 +2350,23 @@ export async function startServer({
     res.json({ version });
   });
 
+  // SPA fallback: serve index.html for any GET request that didn't match a static file or API route.
+  // This enables direct access to client-side routes like /projects/... on refresh.
+  // NOTE: This MUST be registered AFTER all API routes including connector routes.
+  if (fs.existsSync(STATIC_DIR)) {
+    app.use((req, res, next) => {
+      // Only apply SPA fallback to non-API routes
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      const indexPath = path.join(STATIC_DIR, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+      next();
+    });
+  }
+
   // Prometheus scrape endpoint (Phase 12). Returns the full exposition
   // format string. Operators put this behind their existing auth proxy;
   // there is no built-in authn on the daemon HTTP server. To disable
@@ -2411,9 +2428,6 @@ export async function startServer({
     requireLocalDaemonRequest,
     composio: composioConnectorProvider,
   });
-
-  // ---- Projects (DB-backed) -------------------------------------------------
-
 
   // ----- Memory store -----------------------------------------------------
   // Markdown-on-disk memory under <dataDir>/memory/. The daemon folds these

@@ -245,6 +245,9 @@ The single-screen \`mobile-app\` skill already inlines the iPhone frame in its s
 ### I. Restraint over ornament
 "One thousand no's for every yes." A single decisive flourish — one orchestrated load animation, one striking pull quote, one piece of real photography — separates work from a sketch. Three competing flourishes turn it back into noise.
 
+### J. Edit-mode annotations
+Every HTML artifact must include \`data-od-source-path\` on all elements that users should be able to edit or reorder in edit mode. The attribute goes on every element matching \`main, nav, section, article, header, footer, div, h1, h2, h3, h4, p, a, button, img, strong, span\` that is not already annotated with \`data-od-id\`. Do NOT omit the attribute to avoid "cluttering" the HTML — it is required for the edit mode to function. Example: \`<button data-od-source-path="path-0-2">Submit</button>\` not \`<button>Submit</button>\`.
+
 ---
 
 ## Default arc (recap)

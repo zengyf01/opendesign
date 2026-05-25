@@ -304,8 +304,8 @@ export function buildManualEditBridge(enabled: boolean): string {
       var afterId = null;
       var beforeId = null;
       var rect = el.getBoundingClientRect();
-      var midX = rect.left + rect.width / 2;
-      if (e.clientX > midX) {
+      var midY = rect.top + rect.height / 2;
+      if (e.clientY > midY) {
         afterId = dropId;
       } else {
         beforeId = dropId;
@@ -355,7 +355,7 @@ export function buildManualEditBridge(enabled: boolean): string {
       enabled = !!ev.data.enabled;
       document.documentElement.toggleAttribute('data-od-edit-mode', enabled);
       if (!enabled) clearSelectedTarget();
-      if (enabled) setTimeout(postTargets, 0);
+      if (enabled) { postTargets(); setupDragAndDrop(); }
       return;
     }
     if (ev.data.type === 'od-edit-selected-target') {

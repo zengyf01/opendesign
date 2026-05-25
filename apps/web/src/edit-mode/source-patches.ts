@@ -1,4 +1,5 @@
 import { emptyManualEditStyles, MANUAL_EDIT_STYLE_PROPS, type ManualEditFields, type ManualEditPatch, type ManualEditStyles } from './types';
+import { MANUAL_EDIT_HOST_NODE_SELECTOR, MANUAL_EDIT_SOURCE_PATH_ATTR } from './bridge';
 
 export interface ManualEditPatchResult {
   ok: boolean;
@@ -117,8 +118,10 @@ function parseSource(source: string): Document | null {
 }
 
 function serializeSource(doc: Document, originalSource: string): string {
-  if (!isManualEditFullHtmlDocument(originalSource)) return doc.body.innerHTML;
-  return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  const isFull = isManualEditFullHtmlDocument(originalSource);
+  const result = isFull ? `<!doctype html>\n${doc.documentElement.outerHTML}` : doc.body.innerHTML;
+  console.error('[source-patches] serializeSource:', { isFull, originalLen: originalSource.length, resultLen: result.length, resultSnippet: result.slice(0, 200) });
+  return result;
 }
 
 export function isManualEditFullHtmlDocument(source: string): boolean {
@@ -166,8 +169,12 @@ function findElementByPath(doc: Document, id: string): Element | null {
   if (indexes.some((index) => !Number.isInteger(index) || index < 0)) return null;
   let current: Element | null = doc.body;
   for (const index of indexes) {
-    current = current?.children.item(index) ?? null;
     if (!current) return null;
+    // Filter host nodes to match bridge.ts behavior and pathForElement logic
+    const filteredSiblings: Element[] = Array.from(current.children).filter(
+      (child) => !child.matches(MANUAL_EDIT_HOST_NODE_SELECTOR),
+    );
+    current = filteredSiblings[index] ?? null;
   }
   return current;
 }
@@ -196,8 +203,10 @@ function setAttributes(el: Element, attributes: Record<string, string>): void {
 function moveElement(doc: Document, id: string, afterId: string | null, beforeId: string | null): { ok: true } | { ok: false; error: string } {
   const el = findEditableElement(doc, id);
   if (!el) return { ok: false, error: `Element not found: ${id}` };
-  const parent = el.parentElement;
-  if (!parent) return { ok: false, error: 'Element has no parent' };
+  const elParent = el.parentElement;
+  if (!elParent) return { ok: false, error: 'Element has no parent' };
+
+  console.error('[source-patches] moveElement:', { id, afterId, beforeId, elTag: el.tagName, elParentTag: elParent.tagName, elParentChildren: elParent.children.length });
 
   // Find anchor element (insert reference point)
   let anchor: Element | null = null;
@@ -207,28 +216,84 @@ function moveElement(doc: Document, id: string, afterId: string | null, beforeId
     anchor = findEditableElement(doc, beforeId);
   }
 
-  // Remove element from current position
-  el.remove();
+  console.error('[source-patches] moveElement anchor:', anchor ? { tag: anchor.tagName, parentTag: anchor.parentElement?.tagName } : null);
+
+  let newParent: Element;
+  let insertBefore: Element | null = null;
 
   if (anchor) {
+    const anchorParent = anchor.parentElement;
+    if (!anchorParent) return { ok: false, error: 'Anchor has no parent' };
+
     if (afterId !== null) {
-      // Insert after anchor
-      const nextSibling = anchor.nextElementSibling;
-      if (nextSibling) {
-        parent.insertBefore(el, nextSibling);
+      // After anchor: insert BEFORE anchor's next sibling (which places el AFTER anchor)
+      // If anchor has no next sibling, append to anchor's parent
+      // But if anchor CONTAINS el (el is a descendant of anchor), append to anchor instead
+      if (anchor.contains(el)) {
+        // el is inside anchor - append el to anchor (keeps it inside the same container)
+        newParent = anchor;
+        insertBefore = null; // append as last child of anchor
       } else {
-        parent.appendChild(el);
+        newParent = anchorParent;
+        insertBefore = anchor.nextElementSibling;
       }
     } else {
-      // Insert before anchor
-      parent.insertBefore(el, anchor);
+      // Before anchor: insert BEFORE anchor
+      newParent = anchorParent;
+      insertBefore = anchor;
     }
   } else {
-    // No anchor, append to parent
-    parent.appendChild(el);
+    newParent = elParent;
+  }
+
+  console.error('[source-patches] moveElement before remove:', { elTag: el.tagName, newParentTag: newParent.tagName, insertBefore: insertBefore ? insertBefore.tagName : null });
+
+  // Remove el from DOM FIRST
+  el.remove();
+
+  // Now determine the final insert position
+  // Key insight: when beforeId is set, insertBefore is anchor itself (not anchor's next sibling)
+  // When insertBefore is null with beforeId set, anchor is last child -> appendChild places el BEFORE anchor (at end)
+  // When insertBefore is null with afterId set, anchor is last child -> appendChild places el AFTER anchor (at end)
+  if (anchor) {
+    if (insertBefore) {
+      newParent.insertBefore(el, insertBefore);
+    } else {
+      // insertBefore is null: anchor is last child
+      // For beforeId: appendChild puts el at end, which is BEFORE anchor (correct)
+      // For afterId: appendChild puts el at end, which is AFTER anchor (correct)
+      newParent.appendChild(el);
+    }
+  } else {
+    newParent.appendChild(el);
+  }
+
+  console.error('[source-patches] moveElement after insert, newParent children:', newParent.children.length, Array.from(newParent.children).map(c => c.tagName));
+
+  // Update data-od-source-path to reflect new DOM position
+  const newPath = pathForElement(el, doc);
+  console.error('[source-patches] moveElement newPath:', newPath);
+  if (newPath) {
+    el.setAttribute(MANUAL_EDIT_SOURCE_PATH_ATTR, newPath);
   }
 
   return { ok: true };
+}
+
+function pathForElement(el: Element, doc: Document): string {
+  const parts: number[] = [];
+  let node: Element | null = el;
+  while (node && node !== doc.body) {
+    const parentEl: Element | null = node.parentElement;
+    if (!parentEl) break;
+    // Filter out host nodes to match bridge.ts behavior
+    const siblings = Array.from(parentEl.children).filter((child) =>
+      !child.matches(MANUAL_EDIT_HOST_NODE_SELECTOR),
+    );
+    parts.unshift(siblings.indexOf(node));
+    node = parentEl;
+  }
+  return parts.length ? `path-${parts.join('-')}` : '';
 }
 
 function replaceOuterHtml(doc: Document, el: Element, html: string): { ok: true } | { ok: false; error: string } {
