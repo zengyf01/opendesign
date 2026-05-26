@@ -216,7 +216,7 @@ function moveElement(doc: Document, id: string, afterId: string | null, beforeId
     anchor = findEditableElement(doc, beforeId);
   }
 
-  console.error('[source-patches] moveElement anchor:', anchor ? { tag: anchor.tagName, parentTag: anchor.parentElement?.tagName } : null);
+  console.error('[source-patches] moveElement anchor found:', anchor ? { tag: anchor.tagName, parentTag: anchor.parentElement?.tagName, id: afterId ?? beforeId } : null);
 
   let newParent: Element;
   let insertBefore: Element | null = null;
@@ -226,10 +226,10 @@ function moveElement(doc: Document, id: string, afterId: string | null, beforeId
     if (!anchorParent) return { ok: false, error: 'Anchor has no parent' };
 
     if (afterId !== null) {
-      // After anchor: insert BEFORE anchor's next sibling (which places el AFTER anchor)
-      // If anchor has no next sibling, append to anchor's parent
-      // But if anchor CONTAINS el (el is a descendant of anchor), append to anchor instead
-      if (anchor.contains(el)) {
+      // FIXED-BUG: anchor.contains(el) check prevents moving element outside parent
+      // But skip this check when anchor is __body__ (document.body) because
+      // everything is inside body, so anchor.contains(el) would always be true
+      if (anchor !== doc.body && anchor.contains(el)) {
         // el is inside anchor - append el to anchor (keeps it inside the same container)
         newParent = anchor;
         insertBefore = null; // append as last child of anchor
@@ -239,12 +239,20 @@ function moveElement(doc: Document, id: string, afterId: string | null, beforeId
       }
     } else {
       // Before anchor: insert BEFORE anchor
-      newParent = anchorParent;
-      insertBefore = anchor;
+      // But if el is inside anchor, keep it inside anchor (append as last child)
+      if (anchor !== doc.body && anchor.contains(el)) {
+        newParent = anchor;
+        insertBefore = null;
+      } else {
+        newParent = anchorParent;
+        insertBefore = anchor;
+      }
     }
   } else {
     newParent = elParent;
   }
+
+  console.error('[source-patches] moveElement computed:', { afterId, beforeId, anchorTag: anchor?.tagName, anchorContainsEl: anchor ? anchor.contains(el) : null, anchorIsBody: anchor === doc.body, newParentTag: newParent.tagName, insertBeforeTag: insertBefore?.tagName ?? 'null' });
 
   console.error('[source-patches] moveElement before remove:', { elTag: el.tagName, newParentTag: newParent.tagName, insertBefore: insertBefore ? insertBefore.tagName : null });
 

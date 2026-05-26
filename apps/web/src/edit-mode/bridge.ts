@@ -305,11 +305,13 @@ export function buildManualEditBridge(enabled: boolean): string {
       var beforeId = null;
       var rect = el.getBoundingClientRect();
       var midY = rect.top + rect.height / 2;
+      console.error('[bridge] drop:', { draggedId, dropId, clientY: e.clientY, rectTop: rect.top, midY, after: e.clientY > midY });
       if (e.clientY > midY) {
         afterId = dropId;
       } else {
         beforeId = dropId;
       }
+      console.error('[bridge] drop sending:', { id: draggedId, afterId, beforeId });
       window.parent.postMessage({ type: 'od-edit-reorder', id: draggedId, afterId: afterId, beforeId: beforeId }, '*');
       endDrag();
     });
